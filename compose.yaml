@@ -1,0 +1,53 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16.1
+    container_name: test-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=12345
+    healthcheck:
+      test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
+      timeout: 5s
+      interval: 5s
+      retries: 10
+  db-init:
+    image: postgres:16.1
+    container_name: db-init
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set e
+        psql postgresql://dbuser:12345@db:5432/testdb -v ON_ERROR_STOP=1 <<-EOSQL
+          CREATE TABLE IF NOT EXISTS users (
+            id VARCHAR NOT NULL,
+            last_name VARCHAR NOT NULL,
+            first_name VARCHAR NOT NULL,
+            dob DATE NOT NULL,
+            is_blocked VARCHAR NOT NULL,
+            signing_enabled VARCHAR NOT NULL
+        );
+        INSERT INTO users (id, last_name, first_name, dob, is_blocked, signing_enabled)
+        VALUES
+           ('b8fdcfd9-df41-4f94-a53f8e1dff3abf97', 'Медведев', 'Иван', '1970-01-01', 't', 'f'),
+           ('4e4b39e9-fe7b-4115-b7c8-fca8ef7c9113', 'Кашин', 'Кузьма', '1970-01-02', 't', 't'),
+           ('ecc63925-8f5d-4dc4-bf6c7a06ce880d6a', 'Гаврилов', 'Нестор', '1970-01-03', 't', 'f');
+        EOSQL
+
